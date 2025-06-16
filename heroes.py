@@ -5,6 +5,7 @@ from selenium.webdriver.support.wait import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 
 import json
+import csv
 
 options = webdriver.ChromeOptions()
 # options.add_argument("--headless=new")
@@ -85,8 +86,13 @@ for hero in heroes:
 
     result.append(dict(name=name, image=image_url))
 
-with open('heroes.json', 'w', encoding='utf-8') as f:
-    json.dump(result, f, ensure_ascii=False, indent=2)
+# with open('heroes.json', 'w', encoding='utf-8') as f:
+#     json.dump(result, f, ensure_ascii=False, indent=2)
+
+with open('heroes.csv', 'w', newline='', encoding='utf-8') as file:
+    writer = csv.DictWriter(file, fieldnames=["name", "image"])
+    writer.writeheader()
+    writer.writerows(result)
 
 
 driver.quit()
