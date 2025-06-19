@@ -10,10 +10,11 @@ import csv
 import os
 
 import requests
-TOTAL_HERO = 129
+START_FROM = 129
+END = 0
 
 def download_image(url, file_path, file_name):
-    fullpath = file_path + file_name
+    fullpath = os.path.join(file_path, file_name)
     response = requests.get(url)
     if response.status_code == 200:
         with open(fullpath, 'wb') as out_file:
@@ -22,7 +23,7 @@ def download_image(url, file_path, file_name):
         print(f"Failed to download {url}")
 
 options = webdriver.ChromeOptions()
-# options.add_argument("--headless=new")
+options.add_argument("--headless=new")
 options.add_argument("--start-maximized")
 driver = webdriver.Chrome(
     options=options,
@@ -80,10 +81,12 @@ while True:
 heroes = driver.find_elements(By.CSS_SELECTOR, ".mt-list-layout .mt-list-item")
 
 result = []
-file_path  = './hero-img/'
-id_hero = TOTAL_HERO # total current hero
+file_path  = './hero-img'
+id_hero = START_FROM
 
-for hero in heroes:
+i = 0
+while id_hero != 0 and i < len(heroes):
+    hero = heroes[i]
     name = hero.find_element(By.CSS_SELECTOR, ".mt-text span").text
     img_name = name.lower().replace(".", "_").replace(" ", "_").replace("-", "_").replace("'", "") + '.png'
     img = hero.find_element(By.CSS_SELECTOR, ".mt-image img")
@@ -98,12 +101,12 @@ for hero in heroes:
 
     image_url = img.get_attribute("src")
 
-    file_hero_path = f"{file_path}/{name}/"
+    file_hero_path = f"{file_path}/{name.lower()}"
 
     if not os.path.exists(file_hero_path):
         os.makedirs(file_hero_path)
 
-    download_image(image_url, file_path, img_name)
+    download_image(image_url, file_hero_path, img_name)
 
     result.append(dict(
         id=id_hero,
@@ -111,14 +114,18 @@ for hero in heroes:
         image=img_name,
     ))
 
+    if id_hero == END: break
+
+    i += 1
     id_hero -= 1
+
 
 # ============ END INITIAL HERO ============
 
 # ============ START DETAIL ============
 for hero in result:
     hero_name = hero["name"]
-    file_skill_path  = f"./hero-img/{hero_name}/skill"
+    file_skill_path  = f"./hero-img/{hero_name.lower()}/skills/"
     hero_url = f"https://www.mobilelegends.com/hero/detail?heroid={hero["id"]}"
 
     # Open new tab
@@ -173,12 +180,14 @@ for hero in result:
         if not os.path.exists(file_skill_path):
             os.makedirs(file_skill_path)
 
+        skill_image_name = None
         if skill_image:
-            format_image_skill = f"{hero_skill_name}.png"
-            download_image(skill_image, file_skill_path, format_image_skill)
+            skill_name = hero_skill_name.lower().replace(".", "_").replace(" ", "_").replace("-", "_").replace("'", "") + '.png'
+            skill_image_name = f"{hero_name.lower()}/{skill_name}"
+            download_image(skill_image, file_skill_path, skill_name)
 
         skill = {
-            "image": f"{hero_name}/{hero_skill_name}.png" if skill_image else None,
+            "image": skill_image_name,
             "name": hero_skill_name,
             "tags": tags,
             "description_text": hero_skill_description_text,
@@ -187,8 +196,8 @@ for hero in result:
 
         skills.append(skill)
 
-        hero["skills"] = skills
-        hero["quote"] = hero_quote
+    hero["skills"] = skills
+    hero["quote"] = hero_quote.text
 
     driver.close()
     driver.switch_to.window(driver.window_handles[0])
