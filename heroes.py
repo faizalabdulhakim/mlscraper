@@ -7,6 +7,20 @@ from selenium.webdriver.support import expected_conditions as EC
 import json
 import csv
 
+import os
+
+import requests
+TOTAL_HERO = 129
+
+def download_image(url, file_path, file_name):
+    fullpath = file_path + file_name
+    response = requests.get(url)
+    if response.status_code == 200:
+        with open(fullpath, 'wb') as out_file:
+            out_file.write(response.content)
+    else:
+        print(f"Failed to download {url}")
+
 options = webdriver.ChromeOptions()
 # options.add_argument("--headless=new")
 options.add_argument("--start-maximized")
@@ -16,12 +30,11 @@ driver = webdriver.Chrome(
 
 driver.get("https://www.mobilelegends.com/hero")
 
-
+# ============ START WAIT READY ============
 WebDriverWait(driver, 5).until(
     lambda driver: driver.execute_script("return document.readyState") == "complete"
 )
 
-# wait up to 5 seconds on loading
 wait_policy_btn = WebDriverWait(driver, 5).until(
     EC.visibility_of_all_elements_located((By.CSS_SELECTOR, "div.mt-cb-policy-close"))
 )
@@ -43,35 +56,36 @@ wait_load_heroes = WebDriverWait(driver, 5).until(
 wait_heroes = WebDriverWait(driver, 5).until(
     EC.visibility_of_all_elements_located((By.CSS_SELECTOR, ".mt-list-layout .mt-list-item .mt-text span"))
 )
+# ============ END WAIT READY ============
 
-# get the initial scroll height
-# find the scrollable container
+# ============ START SCROLL ============
 scroll_container = driver.find_element(By.CSS_SELECTOR, ".mt-list-layout")
-
-# get initial scroll height
 last_height = driver.execute_script("return arguments[0].scrollHeight", scroll_container)
 
 while True:
-    # scroll to the bottom of the scrollable container
     driver.execute_script("arguments[0].scrollTop = arguments[0].scrollHeight", scroll_container)
 
-    # wait for new content to load
-    time.sleep(5)
+    time.sleep(2)
 
-    # get new height
     new_height = driver.execute_script("return arguments[0].scrollHeight", scroll_container)
 
-    # break if no more new content
     if new_height == last_height:
         break
 
     last_height = new_height
 
+# ============ END SCROLL ============
+
+# ============ START INITIAL HERO ============
 heroes = driver.find_elements(By.CSS_SELECTOR, ".mt-list-layout .mt-list-item")
 
 result = []
+file_path  = './hero-img/'
+id_hero = TOTAL_HERO # total current hero
+
 for hero in heroes:
     name = hero.find_element(By.CSS_SELECTOR, ".mt-text span").text
+    img_name = name.lower().replace(".", "_").replace(" ", "_").replace("-", "_").replace("'", "") + '.png'
     img = hero.find_element(By.CSS_SELECTOR, ".mt-image img")
 
     # Scroll image into view to trigger lazy loading
@@ -84,15 +98,104 @@ for hero in heroes:
 
     image_url = img.get_attribute("src")
 
-    result.append(dict(name=name, image=image_url))
+    file_hero_path = f"{file_path}/{name}/"
 
-# with open('heroes.json', 'w', encoding='utf-8') as f:
-#     json.dump(result, f, ensure_ascii=False, indent=2)
+    if not os.path.exists(file_hero_path):
+        os.makedirs(file_hero_path)
 
-with open('heroes.csv', 'w', newline='', encoding='utf-8') as file:
-    writer = csv.DictWriter(file, fieldnames=["name", "image"])
-    writer.writeheader()
-    writer.writerows(result)
+    download_image(image_url, file_path, img_name)
 
+    result.append(dict(
+        id=id_hero,
+        name=name,
+        image=img_name,
+    ))
+
+    id_hero -= 1
+
+# ============ END INITIAL HERO ============
+
+# ============ START DETAIL ============
+for hero in result:
+    hero_name = hero["name"]
+    file_skill_path  = f"./hero-img/{hero_name}/skill"
+    hero_url = f"https://www.mobilelegends.com/hero/detail?heroid={hero["id"]}"
+
+    # Open new tab
+    driver.execute_script(f"window.open('{hero_url}', '_blank');")
+    driver.switch_to.window(driver.window_handles[-1])
+    WebDriverWait(driver, 5).until(
+        lambda driver: driver.execute_script("return document.readyState") == "complete"
+    )
+
+    wait_content = WebDriverWait(driver, 5).until(
+        EC.visibility_of_all_elements_located((By.CSS_SELECTOR, "div.mt-tab-pane > div.mt-list-item > div.mt-tab-pane > div.mt-list-item"))
+    )
+    
+    hero_detail = driver.find_element(By.CSS_SELECTOR, "div.scroll-y > div:nth-of-type(1) > div:nth-of-type(1)")
+    hero_quote = hero_detail.find_element(By.CSS_SELECTOR, "div:nth-of-type(2) > div.mt-text span")
+    
+    hero_skill_images = driver.find_elements(By.CSS_SELECTOR, "div.mt-tab-pane > div.mt-list-item > div.mt-tabs > div.mt-list-item")
+
+    skills = []
+    for skill_element in hero_skill_images:
+        skill_element.click()
+
+        wait_skill_content = WebDriverWait(driver, 5).until(
+            EC.visibility_of_all_elements_located((By.CSS_SELECTOR, "div.mt-tab-pane > div.mt-list-item > div.mt-tab-pane > div.mt-list-item > div:nth-of-type(1) > div.mt-text > span"))
+        )
+        
+        try:
+            skill_image = skill_element.find_element(By.CSS_SELECTOR, "img").get_attribute("src")
+        except:
+            skill_image = None
+
+        hero_skill_content = driver.find_element(By.CSS_SELECTOR, "div.mt-tab-pane > div.mt-list-item > div.mt-tab-pane > div.mt-list-item")
+        hero_skill_name = hero_skill_content.find_element(By.CSS_SELECTOR, "div:nth-of-type(1) > div.mt-text > span").text
+        hero_skill_tags = hero_skill_content.find_elements(By.CSS_SELECTOR, "div:nth-of-type(1) > div.mt-list > .mt-list-item")
+
+        try:
+            WebDriverWait(driver, 5).until(
+                EC.visibility_of_element_located((By.CSS_SELECTOR,"div.mt-tab-pane > div.mt-list-item > div.mt-tab-pane > div.mt-list-item > div:nth-of-type(3) > div.mt-rich-text-content"))
+            )
+            hero_skill_description = hero_skill_content.find_element(By.CSS_SELECTOR,"div:nth-of-type(3) > div.mt-rich-text-content")
+            hero_skill_description_text = hero_skill_description.text
+            hero_skill_description_html = hero_skill_description.get_attribute("innerHTML")
+        except:
+            hero_skill_description_text = ""
+            hero_skill_description_html = ""
+
+        tags = []
+        for tag_element in hero_skill_tags:
+            tag = tag_element.find_element(By.CSS_SELECTOR, "div.mt-rich-text-content")
+            tags.append(tag.text)
+
+        if not os.path.exists(file_skill_path):
+            os.makedirs(file_skill_path)
+
+        if skill_image:
+            format_image_skill = f"{hero_skill_name}.png"
+            download_image(skill_image, file_skill_path, format_image_skill)
+
+        skill = {
+            "image": f"{hero_name}/{hero_skill_name}.png" if skill_image else None,
+            "name": hero_skill_name,
+            "tags": tags,
+            "description_text": hero_skill_description_text,
+            "description_html": hero_skill_description_html,
+        }
+
+        skills.append(skill)
+
+        hero["skills"] = skills
+        hero["quote"] = hero_quote
+
+    driver.close()
+    driver.switch_to.window(driver.window_handles[0])
+
+# ============ END DETAIL ============
+
+with open('heroes.json', 'w', encoding='utf-8') as f:
+    json.dump(result, f, ensure_ascii=False, indent=2)
 
 driver.quit()
