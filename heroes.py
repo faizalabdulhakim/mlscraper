@@ -10,8 +10,8 @@ import csv
 import os
 
 import requests
-START_FROM = 129
-END = 0
+START_FROM_ID = 1
+END_ID = 129
 
 def download_image(url, file_path, file_name):
     fullpath = os.path.join(file_path, file_name)
@@ -22,9 +22,13 @@ def download_image(url, file_path, file_name):
     else:
         print(f"Failed to download {url}")
 
+
+def format_name(name):
+    return name.lower().replace(".", "_").replace(" ", "_").replace("-", "_").replace("'", "").replace(":", "")
+
 options = webdriver.ChromeOptions()
 options.add_argument("--headless=new")
-options.add_argument("--start-maximized")
+# options.add_argument("--start-maximized")
 driver = webdriver.Chrome(
     options=options,
 )
@@ -79,29 +83,28 @@ while True:
 
 # ============ START INITIAL HERO ============
 heroes = driver.find_elements(By.CSS_SELECTOR, ".mt-list-layout .mt-list-item")
+heroes.reverse()
 
 result = []
 file_path  = './hero-img'
-id_hero = START_FROM
+id_hero = START_FROM_ID
 
-i = 0
-while id_hero != 0 and i < len(heroes):
-    hero = heroes[i]
+selected_heroes = heroes[START_FROM_ID - 1:END_ID + 1]
+
+for hero in selected_heroes:
     name = hero.find_element(By.CSS_SELECTOR, ".mt-text span").text
-    img_name = name.lower().replace(".", "_").replace(" ", "_").replace("-", "_").replace("'", "") + '.png'
+    formatted_name = format_name(name)
+    img_name = formatted_name + '.png'
     img = hero.find_element(By.CSS_SELECTOR, ".mt-image img")
 
-    # Scroll image into view to trigger lazy loading
     driver.execute_script("arguments[0].scrollIntoView({block: 'center'});", img)
-
-    # Wait for 'src' to be non-empty
     WebDriverWait(driver, 10).until(
         lambda d: img.get_attribute("src") and "data:image" not in img.get_attribute("src")
     )
 
     image_url = img.get_attribute("src")
 
-    file_hero_path = f"{file_path}/{name.lower()}"
+    file_hero_path = f"{file_path}/{formatted_name}"
 
     if not os.path.exists(file_hero_path):
         os.makedirs(file_hero_path)
@@ -111,13 +114,12 @@ while id_hero != 0 and i < len(heroes):
     result.append(dict(
         id=id_hero,
         name=name,
-        image=img_name,
+        image=f"{formatted_name}/{img_name}",
     ))
 
-    if id_hero == END: break
+    if id_hero == END_ID: break
 
-    i += 1
-    id_hero -= 1
+    id_hero += 1
 
 
 # ============ END INITIAL HERO ============
@@ -125,7 +127,8 @@ while id_hero != 0 and i < len(heroes):
 # ============ START DETAIL ============
 for hero in result:
     hero_name = hero["name"]
-    file_skill_path  = f"./hero-img/{hero_name.lower()}/skills/"
+    formatted_name = format_name(hero_name)
+    file_skill_path  = f"./hero-img/{formatted_name}/skills"
     hero_url = f"https://www.mobilelegends.com/hero/detail?heroid={hero["id"]}"
 
     # Open new tab
@@ -183,7 +186,7 @@ for hero in result:
         skill_image_name = None
         if skill_image:
             skill_name = hero_skill_name.lower().replace(".", "_").replace(" ", "_").replace("-", "_").replace("'", "") + '.png'
-            skill_image_name = f"{hero_name.lower()}/{skill_name}"
+            skill_image_name = f"{formatted_name}/skills/{skill_name}"
             download_image(skill_image, file_skill_path, skill_name)
 
         skill = {
