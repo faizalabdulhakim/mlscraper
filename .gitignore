@@ -1,0 +1,9 @@
+# Ignore the hero image directory
+**/hero-img/
+hero-img-v-1/
+
+# Ignore the heroes JSON data file
+**/heroes.json
+
+/mlscraper/untracked
+**/untracked
