@@ -24,9 +24,23 @@ def download_image(url, file_path, file_name):
 
 
 def format_name(name):
-    return name.lower().replace(".", "_").replace(" ", "_").replace("-", "_").replace("'", "").replace(":", "")
+    return name.lower()\
+        .replace(" ", "_")\
+        .replace("-", "_")\
+        .replace(".", "")\
+        .replace("'", "")\
+        .replace("’", "")\
+        .replace("`", "")\
+        .replace(":", "")\
+        .replace("?", "")\
+        .replace(",", "")\
+        .replace("!", "")\
+        .replace('"', "")\
+        .replace('"', "")\
+        .replace('&', "and")\
 
-options = webdriver.ChromeOptions()
+options = webdriver\
+    .ChromeOptions()
 options.add_argument("--headless=new")
 # options.add_argument("--start-maximized")
 driver = webdriver.Chrome(
@@ -185,7 +199,7 @@ for hero in result:
 
         skill_image_name = None
         if skill_image:
-            skill_name = hero_skill_name.lower().replace(".", "_").replace(" ", "_").replace("-", "_").replace("'", "") + '.png'
+            skill_name = format_name(hero_skill_name) + '.png'
             skill_image_name = f"{formatted_name}/skills/{skill_name}"
             download_image(skill_image, file_skill_path, skill_name)
 
